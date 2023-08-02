@@ -1,0 +1,136 @@
+%%[
+IF _messagecontext != 'PREVIEW' THEN
+  set @subkey = _subscriberkey
+  SET @Contacts = RetrieveSalesforceObjects('Contact', 'Id,Preferences_Email_Newsletter__c,Preferences_Email_Alerts__c,HasOptedOutOfEmail','ID', '=', @subkey)
+    IF RowCount(@Contacts) > 0 then
+         SET @ContactRow = Row(@Contacts,1) 
+         SET @contactID = Field(@ContactRow, 'Id')
+         SET @newsletters = Field(@ContactRow, 'Preferences_Email_Newsletter__c')
+         SET @alerts = Field(@ContactRow, 'Preferences_Email_Alerts__c')
+         SET @optout = Field(@ContactRow, 'HasOptedOutOfEmail')
+    ENDIF
+ENDIF
+
+/* Page was submitted */
+IF requestparameter("Submitted") == 'True' THEN
+  SET @email = requestparameter("email")
+  SET @subkey = requestparameter("subkey")
+  
+  SET @unsubscribeCheckbox = requestparameter("unsubscribe")
+  SET @newsletterCheckbox = requestparameter("newsletter")
+  SET @alertasCheckbox = requestparameter("alertas")
+  
+    /* Get Individual ID */
+    SET @Contacts = RetrieveSalesforceObjects('Contact', 'Id,Preferences_Email_Newsletter__c,Preferences_Email_Alerts__c,HasOptedOutOfEmail','ID', '=', @subkey)
+    IF RowCount(@Contacts) > 0 then
+         SET @ContactRow = Row(@Contacts,1) 
+         SET @contactID = Field(@ContactRow, 'Id')
+         SET @newsletters = Field(@ContactRow, 'Preferences_Email_Newsletter__c')
+         SET @alerts = Field(@ContactRow, 'Preferences_Email_Alerts__c')
+         SET @optout = Field(@ContactRow, 'HasOptedOutOfEmail')
+         
+         if @newsletterCheckbox == "on" then
+           set @newsletterCheckbox = "true"
+         else
+           set @newsletterCheckbox = "false"
+         endif
+         
+         if @alertasCheckbox == "on" then
+           set @alertasCheckbox = "true"
+         else
+           set @alertasCheckbox = "false"
+         endif
+         
+          if @unsubscribeCheckbox == "on" then
+           set @unsubscribeCheckbox = "true"
+         else
+           set @unsubscribeCheckbox = "false"
+         endif
+         
+         if @newsletters != @newsletterCheckbox then
+           UpdateSingleSalesforceObject('Contact',@contactID,'Preferences_Email_Newsletter__c',@newsletterCheckbox)
+         endif
+         
+         if @alerts != @alertasCheckbox then
+           UpdateSingleSalesforceObject('Contact',@contactID,'Preferences_Email_Alerts__c',@alertasCheckbox)
+         endif
+         
+         if @optout != @unsubscribeCheckbox then
+           UpdateSingleSalesforceObject('Contact',@contactID,'HasOptedOutOfEmail',@unsubscribeCheckbox)
+         endif
+         
+         if @unsubscribeCheckbox == "true" then
+           upsertData("Futbolshop_Unsubscribes",1,"ContactKey", @contactID, "UnsubDate", Now())
+         endif
+         set @status = "ok"
+    ENDIF
+    
+ENDIF
+]%%
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FutbolShop - Centro de Preferencias</title>
+  <!-- Bootstrap CSS -->
+  <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+</head>
+
+<body>
+  <div class="container">
+    
+    <div class="text-center">
+      <img src="https://demo-fultbolshop.myshopify.com/cdn/shop/files/d8e04903-769b-4d09-a8f1-0bb86992570d_360x.png?v=1613573329" alt="Logo" class="img-fluid" style="max-width: 200px;">
+      %%[if @status =="ok" then]%%
+      <div class="alert alert-success" role="alert">
+        Tus preferencias han sido guardadas
+      </div>
+      %%[endif]%%
+      <h1> Centro de Preferencias</h1>
+      <p>Maneja tus preferencias:</p>
+   </div>
+    <div class="row justify-content-center">
+      <div class="col-md-6">
+      <form method="post" action="%%=RequestParameter('PAGEURL')=%%">
+        <input type="hidden" name="Submitted" id="Submitted" value="True">
+        <input type="hidden" name="subkey" id="subkey" value="%%_subscriberkey%%">
+        <!-- Read-only email field -->
+        <div class="form-group">
+          <label for="email">Email:</label>
+          <input type="email" id="email" name="email" value="%%emailaddr%%" class="form-control" readonly>
+        </div>
+        <h3>
+          Publicaciones Disponibles:
+        </h3>
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" id="newsletter" name="newsletter" %%[if @newsletters == true then]%%checked="checked"%%[endif]%%>
+          <label class="form-check-label" for="newsletter">Newsletter de Futbolshop</label>
+          <p><small>Llega una vez por semana.</small></p>
+        </div>
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" id="alertas" name="alertas" %%[if @alerts == true then]%%checked="checked"%%[endif]%%>
+          <label class="form-check-label" for="alertas">Alertas Baja de Stock</label>
+          <p><small>Llega cuando el stock de tus productos favoritos esta bajo.</small></p>
+        </div>
+        <!-- Checkbox to unsubscribe from all email preferences -->
+        <div class="alert alert-danger">
+          <div class="form-check">
+            <input type="checkbox" class="form-check-input" id="unsubscribe" name="unsubscribe">
+            <label class="form-check-label" for="unsubscribe">No quiero recibir mas ofertas o emails</label>
+          </div>
+        </div>
+        <br>
+
+        <button type="submit" class="btn btn-primary">Guardar Preferencias</button>
+      </form>
+                
+      </div>
+
+    </div>
+  </div>
+
+  </body>
+
+</html>
